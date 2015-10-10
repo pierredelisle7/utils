@@ -1,2 +1,2 @@
 # utils
-All sorts of utilities.
+All sorts of JavaScript utilities.
