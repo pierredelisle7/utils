@@ -104,16 +104,17 @@ Scheduling.getEligibleApptTimes = function (weekAvailableTimePeriods, calendarAp
   var weekAvailableTimeSlots = getWeekAvailableTimeSlots(weekAvailableTimePeriods);
   for (var i = 0; i < calendarAppts.length; i++) {
     var appts = calendarAppts[i].appts;
-    var dayOfWeek = calendarAppts[i].date.getDay();
+    var dayOfWeek = new Date(calendarAppts[i].date).getDay();
     var busyTimeSlots = timePeriodsToTimeSlots(appts, NOT_AVAILABLE_FOR_APPT);
-    var mergedTimeSlots = mergeTimeConstraints(availabilityGrid[dayOfWeek], busyTimeSlots,
-        startSlotModulo, durationSlotCount);
+    var mergedTimeSlots = mergeTimeConstraints(weekAvailableTimeSlots[dayOfWeek], busyTimeSlots,
+        apptStartBoundary, apptDuration);
     for (var j = 0; j < mergedTimeSlots.length; j++) {
       if (mergedTimeSlots[j]) {
         eligibleApptTimes.push(createAvailabilityTime(calendarAppts[i].date, j));
       }
     }
   }
+  return eligibleApptTimes;
 };
 
 /**
@@ -122,7 +123,7 @@ Scheduling.getEligibleApptTimes = function (weekAvailableTimePeriods, calendarAp
 function getWeekAvailableTimeSlots(weekAvailableTimePeriods) {
   var weekAvailableTimeSlots = [];
   for (var i = 0; i < weekAvailableTimePeriods.length; i++) {
-    weekAvailableTimeSlots.push(Scheduling.timePeriodsToTimeSlots(weekAvailableTimePeriods[i], true));
+    weekAvailableTimeSlots.push(timePeriodsToTimeSlots(weekAvailableTimePeriods[i], true));
   }
   return weekAvailableTimeSlots;
 }
@@ -133,7 +134,7 @@ function getWeekAvailableTimeSlots(weekAvailableTimePeriods) {
  * @param isAvailable Tells whether the timePeriods represent available (true)
  *     or busy (false) times.
  */
-Scheduling.timePeriodsToTimeSlots = function (timePeriods, isAvailable) {
+function timePeriodsToTimeSlots(timePeriods, isAvailable) {
   var initialTimeSlotValue = isAvailable ? NOT_AVAILABLE_FOR_APPT : AVAILABLE_FOR_APPT;
   var availGrid = genFiveMinTimeSlots(initialTimeSlotValue);
   var timeSlotValue = isAvailable ? AVAILABLE_FOR_APPT : NOT_AVAILABLE_FOR_APPT;
@@ -176,8 +177,8 @@ Scheduling.timeToSlot = function (time) {
  * @param apptStartBoundary
  * @param apptDuration
  */
-Scheduling.mergeTimeConstraints = function (schedulableTimeSlots, busyTimeSlots, apptStartBoundary, apptDuration) {
-  var timeSlotsMerged = fillFiveMinTimeSlots(NOT_AVAILABLE_FOR_APPT);
+function mergeTimeConstraints(schedulableTimeSlots, busyTimeSlots, apptStartBoundary, apptDuration) {
+  var timeSlotsMerged = genFiveMinTimeSlots(NOT_AVAILABLE_FOR_APPT);
   var startModuloValue = apptStartBoundary / 5;
   var durationSlotCount = apptDuration / 5;
   for (var i = 0; i < TIME_SLOTS_COUNT; i++) {
@@ -240,17 +241,38 @@ function genFiveMinTimeSlots(isAvailableForAppt) {
   return array;
 }
 
+function createAvailabilityTime(date, j) {
+  var availabilityTime = new Date(date);
+  var hours = Math.floor(j / 12);
+  var minutes = (j % 12) * 5;
+  availabilityTime.setHours(hours)
+  availabilityTime.setMinutes(minutes);
+  return availabilityTime;
+}
+
 exports.Scheduling = Scheduling;
 
-var timeInfo = [
+var weekAvailableTimePeriods =
+    [
+      [],
+      [["08:00", "12:00"], ["13:00", "17:00"]],
+      [["08:00", "12:00"], ["13:00", "17:00"]],
+      [["08:00", "12:00"], ["13:00", "17:00"]],
+      [["08:00", "12:00"], ["13:00", "17:00"]],
+      [["08:00", "12:00"], ["13:00", "17:00"]],
+      []
+    ];
+
+var calendarAppts = [
   {
-    day: 1,
-    start: "08:00",
-    end: "12:00"
+    date: "2015-12-01",
+    appts: [["08:00", "12:00"], ["13:00", "14:00"]]
   },
   {
-    day: 4,
-    start: "13:00",
-    end: "17:00"
-  },
+    date: "2015-12-02",
+    appts: [["08:00", "09:00"], ["13:00", "17:00"]]
+  }
 ];
+
+Scheduling.getEligibleApptTimes(weekAvailableTimePeriods, calendarAppts, 30, 30);
+
