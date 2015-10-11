@@ -3,7 +3,7 @@
 var Scheduling = {};
 
 // Count of 5 min time slots in a day.
-var TIME_SLOTS_COUNT = 24 * 12;
+var TIME_SLOTS_COUNT = 24 * 12; // 288
 // A true value in time slots means that the time slot is available to set an appointment.
 var AVAILABLE_FOR_APPT = true;
 // A false value in time slots means that the time slot is busy and *not* available to set an appointment.
@@ -12,17 +12,7 @@ var NOT_AVAILABLE_FOR_APPT = false;
 // -------------------------------------------------------------------------------------------------\
 // Data Structures
 
-// validate json data:
-// see http://codebeautify.org/jsonviewer
-
 /**
- * ApptInfo defines information specific to an appointment to schedule. Properties are:
- *   - name
- *   - duration in minutes (must be a multiple of 5)
- *   - apptStartBoundary (see below)
- *   - weekAvailableTimePeriods If specified, overrides the weekAvailableTimePeriods defined globally
- *         for the provider.
- *
  * TimePeriod is an array of two times (hh:mm) that delimit the start and end of a time period.
  * For example:
  *   ["08:00","14:00"]
@@ -47,14 +37,30 @@ var NOT_AVAILABLE_FOR_APPT = false;
  *   []
  * ]
  *
+ * WeekTimePeriods are specified in the SchedulingPreferences table. This specfies the time periods where a
+ * provider is open to schedule appointments. Note that specific appointment types can override these
+ * periods. FOr example, maybe a dentist will only schedule crowns on Tuesday/THursday.
+ *
+ * ApptInfo defines information specific to an appointment to schedule. Properties are:
+ *   - name
+ *   - duration in minutes (must be a multiple of 5)
+ *   - apptStartBoundary (see below)
+ *   - weekAvailableTimePeriods If specified, overrides the weekAvailableTimePeriods defined globally
+ *         for the provider. See above.
+ *
+ * ApptInfo's are specified in the SchedulingApptType table. A provider can support as many
+ * appointment types as needed.
+ *
  * DayApptInfo defines all appointments for a specific date. It has the following properties:
- *   - date: the date of the appointments
+ *   - date: the date of the appointments (a Date object, not a string).
  *   - appts: Array of TimePeriod objects that define busy times (i.e. not available for appointments).
  * For example:
  *   {
  *     date: 2015-12-05,
  *     appts: [["08:00","12:00"], ["13:00", "17:00"]]
  *   }
+ *
+ * This is the information we compute when we read a provider or client calendar.
  *
  * ApptStartBoundary defines the minutes boundary at which an appointment can start.
  * Possible values are:
@@ -73,17 +79,24 @@ var NOT_AVAILABLE_FOR_APPT = false;
  * Returns an array of eligible appointment times.
  * Appointment times are formatted according to ISO 8601.
  *
+ * For example:
+ * [
+ *   Mon Nov 30 2015 14:00:00 GMT-0800 (PST),
+ *   Mon Nov 30 2015 14:30:00 GMT-0800 (PST),
+ *   Mon Nov 30 2015 15:00:00 GMT-0800 (PST),
+ * ]
+ *
  * @param providerId Id of the provider.
  * @param clientId Id of the client.
- * @param apptInfo Information specific to the appointment to schedule. See
- * @param weekAvailableTimePeriods A WeekTimePeriods object that defines all periods of times during a week
+ * @param apptInfo ApptInfo for the appointment to schedule.
+ * @param weekAvailableTimePeriods WeekTimePeriods that defines all periods of times during a week
  *     where appointments can be scheduled.
  * @param startDate Date (inclusive) where we start looking for eligible time slots to schedule the appointment.
  * @param endDate Date (inclusive) where we stop looking for eligible time slots to schedule the appointment.
  */
 Scheduling.requestAppt = function (providerId, clientId, apptInfo, weekAvailableTimePeriods,
                                    startDate, endDate) {
-
+  validateRequestApptArgs();
 }
 
 // -------------------------------------------------------------------------------------------------\
@@ -93,18 +106,25 @@ Scheduling.requestAppt = function (providerId, clientId, apptInfo, weekAvailable
  * Returns an array of eligible appointment times.
  * Appointment times are formatted according to ISO 8601.
  *
- * @param weekAvailableTimePeriods A WeekTimePeriods object that defines all periods of times during a week
+ * @param weekAvailableTimePeriods WeekTimePeriods that defines all periods of times during a week
  *     where appointments can be scheduled.
- * @param calendarAppts Array of DayApptInfo objects.
+ * @param providerCalendarAppts Array of DayApptInfo objects for the appts already set for the provider.
+ *   The elements of the array are sorted in chronological order. There needs to be one entry for each of
+ *   the days in the time period (startDate to endDate).
+ * @param clientCalendarAppts Array of DayApptInfo objects for the appts already set for the client.
+ *   The elements of the array are sorted in chronological order.
  * @param apptStartBoundary The minutes at which an appointment can start (see ApptStartBoundary)
  * @param apptDuration Duration in minutes for the appointment.
  */
-Scheduling.getEligibleApptTimes = function (weekAvailableTimePeriods, calendarAppts, apptStartBoundary, apptDuration) {
+Scheduling.getEligibleApptTimes = function (weekAvailableTimePeriods,
+                                            providerCalendarAppts, clientCalendarAppts,
+                                            apptStartBoundary, apptDuration) {
   var eligibleApptTimes = [];
   var weekAvailableTimeSlots = getWeekAvailableTimeSlots(weekAvailableTimePeriods);
+  var calendarAppts = mergeCalendarAppts(providerCalendarAppts, clientCalendarAppts);
   for (var i = 0; i < calendarAppts.length; i++) {
     var appts = calendarAppts[i].appts;
-    var dayOfWeek = new Date(calendarAppts[i].date).getDay();
+    var dayOfWeek = calendarAppts[i].date.getDay();
     var busyTimeSlots = timePeriodsToTimeSlots(appts, NOT_AVAILABLE_FOR_APPT);
     var mergedTimeSlots = mergeTimeConstraints(weekAvailableTimeSlots[dayOfWeek], busyTimeSlots,
         apptStartBoundary, apptDuration);
@@ -116,6 +136,48 @@ Scheduling.getEligibleApptTimes = function (weekAvailableTimePeriods, calendarAp
   }
   return eligibleApptTimes;
 };
+
+/**
+ * Merge appointments of two calendars.
+ *
+ * Both calendarAppts are DayApptInfo objects.
+ * FIXME: Could do better here -- really merge the time periods...
+ */
+function mergeCalendarAppts(calendarAppts1, calendarAppts2) {
+  if (!calendarAppts1 || calendarAppts1.length == 0) {
+    return calendarAppts2;
+  }
+  if (!calendarAppts2 || calendarAppts2.length == 0) {
+    return calendarAppts1;
+  }
+
+  var calendarAppts = [];
+  var i = 0;
+  var j = 0;
+  var dayAppts1 = calendarAppts1[i];
+  var dayAppts2 = calendarAppts2[j];
+  while ((i < calendarAppts1.length) && (j < calendarAppts2.length)) {
+    if (dayAppts1.date < dayAppts2.date) {
+      calendarAppts.push(dayAppts1);
+      dayAppts1 = calendarAppts1[++i];
+    } else if (dayAppts2.date < dayAppts1.date) {
+      calendarAppts.push(dayAppts2);
+      dayAppts2 = calendarAppts2[++j];
+    } else {
+      dayAppts1.appts.push.apply(dayAppts1.appts, dayAppts2.appts);
+      calendarAppts.push(dayAppts1);
+      dayAppts1 = calendarAppts1[++i];
+      dayAppts2 = calendarAppts2[++j];
+    }
+  }
+  while (i < calendarAppts1.length) {
+    calendarAppts.push(calendarAppts1[i++]);
+  }
+  while (j < calendarAppts2.length) {
+    calendarAppts.push(calendarAppts2[j++]);
+  }
+  return calendarAppts;
+}
 
 /**
  * Converts weekAvailableTimePeriods to weekAvailableTimeSlots.
@@ -208,6 +270,7 @@ function mergeTimeConstraints(schedulableTimeSlots, busyTimeSlots, apptStartBoun
   return timeSlotsMerged;
 };
 
+// FIXME: re-instate this once we have the cloud function enabled.
 function validateGetAvailabilityGridArgs(availableTimeSlots, busyTimeSlots, startSlotModulo, durationSlotCount) {
   validateArraySize(availableTimeSlots);
   validateArraySize(busyTimeSlots);
@@ -263,16 +326,46 @@ var weekAvailableTimePeriods =
       []
     ];
 
-var calendarAppts = [
+var calendarAppts1 = [
   {
-    date: "2015-12-01",
+    date: new Date("2015-12-01 PST"),
     appts: [["08:00", "12:00"], ["13:00", "14:00"]]
   },
   {
-    date: "2015-12-02",
+    date: new Date("2015-12-02 PST"),
+    appts: [["08:00", "09:00"], ["13:00", "17:00"]]
+  },
+  {
+    date: new Date("2015-12-04 PST"),
+    appts: [["08:00", "09:00"], ["13:00", "17:00"]]
+  }
+
+];
+
+var calendarAppts2 = [
+  {
+    date: new Date("2015-12-01 PST"),
+    appts: [["08:00", "12:00"], ["13:00", "14:00"]]
+  },
+  {
+    date: new Date("2015-12-02 PST"),
+    appts: [["08:00", "09:00"], ["13:00", "17:00"]]
+  },
+  {
+    date: new Date("2015-12-03 PST"),
     appts: [["08:00", "09:00"], ["13:00", "17:00"]]
   }
 ];
 
-Scheduling.getEligibleApptTimes(weekAvailableTimePeriods, calendarAppts, 30, 30);
+/*
+ console.log(createAvailabilityTime(new Date("2015-12-01 PDT"), 96));
+ console.log(createAvailabilityTime(new Date("2015-12-01 PST"), 97));
+ console.log(createAvailabilityTime(new Date("2015-12-01 PST"), 98));
+ console.log(createAvailabilityTime(new Date("2015-12-01 PST"), 99));
+ */
+
+//console.log(Scheduling.getEligibleApptTimes(weekAvailableTimePeriods, calendarAppts1, calendarAppts2, 30, 30));
+
+//console.dir(mergeCalendarAppts(calendarAppts1, calendarAppts2), {depth: null});
+//console.dir(mergeCalendarAppts(calendarAppts1, []), {depth: null});
 
