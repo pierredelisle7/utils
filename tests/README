@@ -1,0 +1,6 @@
+From the utils directory:
+
+$ . tests/aliases.sh
+$ rununittests
+
+Write all tests in files ending with spec.js.
