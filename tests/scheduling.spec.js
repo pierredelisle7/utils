@@ -7,19 +7,38 @@ var INVALID_TIME_SLOT_MODULO = 5;
 var VALID_DURATION_SLOT_COUNT = 4;
 var INVALID_DURATION_SLOT_COUNT = 0;
 
-describe("Scheduling", function() {
-  it("Invalid arguments", function() {
-    expect(Scheduling.getDayAvailabilityGrid.bind(this,
-        INVALID_AVAILABILITY_GRID, VALID_AVAILABILITY_GRID, VALID_TIME_SLOT_MODULO, VALID_DURATION_SLOT_COUNT))
-        .toThrow();
-    expect(Scheduling.getDayAvailabilityGrid.bind(this,
-        VALID_AVAILABILITY_GRID, INVALID_AVAILABILITY_GRID, VALID_TIME_SLOT_MODULO, VALID_DURATION_SLOT_COUNT))
-        .toThrow();
-    expect(Scheduling.getDayAvailabilityGrid.bind(this,
-        VALID_AVAILABILITY_GRID, VALID_AVAILABILITY_GRID, INVALID_TIME_SLOT_MODULO, VALID_DURATION_SLOT_COUNT))
-        .toThrow();
-    expect(Scheduling.getDayAvailabilityGrid.bind(this,
-        VALID_AVAILABILITY_GRID, VALID_AVAILABILITY_GRID, VALID_TIME_SLOT_MODULO, INVALID_DURATION_SLOT_COUNT))
-        .toThrow();
+describe("Scheduling", function () {
+
+  describe("timeToSlot", function () {
+    it("Valid arguments", function () {
+      expect(Scheduling.timeToSlot("00:00")).toEqual(0);
+      expect(Scheduling.timeToSlot("00:05")).toEqual(1);
+      expect(Scheduling.timeToSlot("01:15")).toEqual(15);
+      expect(Scheduling.timeToSlot("23:55")).toEqual(287);
+    });
+    it("Invalid arguments", function () {
+      expect(Scheduling.timeToSlot.bind(this, "abc")).toThrow();
+      expect(Scheduling.timeToSlot.bind(this, "31:00")).toThrow();
+      expect(Scheduling.timeToSlot.bind(this, "15:43")).toThrow();
+    });
+  });
+
+  describe("getDayAvailabilityGrid", function () {
+    it("Invalid arguments", function () {
+      expect(Scheduling.getDayAvailabilityGrid.bind(this,
+          INVALID_AVAILABILITY_GRID, VALID_AVAILABILITY_GRID, VALID_TIME_SLOT_MODULO, VALID_DURATION_SLOT_COUNT))
+          .toThrow();
+      expect(Scheduling.getDayAvailabilityGrid.bind(this,
+          VALID_AVAILABILITY_GRID, INVALID_AVAILABILITY_GRID, VALID_TIME_SLOT_MODULO, VALID_DURATION_SLOT_COUNT))
+          .toThrow();
+      expect(Scheduling.getDayAvailabilityGrid.bind(this,
+          VALID_AVAILABILITY_GRID, VALID_AVAILABILITY_GRID, INVALID_TIME_SLOT_MODULO, VALID_DURATION_SLOT_COUNT))
+          .toThrow();
+      expect(Scheduling.getDayAvailabilityGrid.bind(this,
+          VALID_AVAILABILITY_GRID, VALID_AVAILABILITY_GRID, VALID_TIME_SLOT_MODULO, INVALID_DURATION_SLOT_COUNT))
+          .toThrow();
+    });
   });
 });
+
+// timeToSlot("00:00");
