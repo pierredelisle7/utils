@@ -313,7 +313,51 @@ function createAvailabilityTime(date, j) {
   return availabilityTime;
 }
 
+/**
+ * Returns an array of DayApptInfo objects.
+ */
+function parseCronofyData(cronofyJson) {
+  var dayApptInfoArray = [];
+  //var events = JSON.parse(cronofyJson).events;
+  var events = cronofyJson.events;
+  var currentDay = null;
+  for (var i = 0; i < events.length; i++) {
+    var start = new Date(events[i].start);
+    var end = new Date(events[i].end);
+    var appt = [start.getHours() + ":" + start.getMinutes(),
+      end.getHours() + ":" + end.getMinutes()];
+    if (currentDay != null && currentDay.date.isSameDateAs(start)) {
+       currentDay.appts.push(appt);
+    } else {
+      if (currentDay != null) {
+        dayApptInfoArray.push(currentDay);
+      }
+      currentDay = {
+        date: start,
+        appts: [appt]
+      }
+    }
+  }
+  if (currentDay != null) {
+    dayApptInfoArray.push(currentDay);
+  }
+  return dayApptInfoArray;
+}
+
+Date.prototype.isSameDateAs = function(other) {
+  return (
+      this.getFullYear() === other.getFullYear() &&
+      this.getMonth() === other.getMonth() &&
+      this.getDate() === other.getDate()
+  );
+}
+
 exports.Scheduling = Scheduling;
+
+var cronofyJson = {
+  "pages":{"current":1,"total":1},
+  "events":[{"calendar_id":"cal_VesMAFStrG1xAHiE_IqTwe6Cl0QNWofE0u95TYg","event_uid":"evt_external_561ac3dce7d68f801b6d9e15","summary":"test appt busy","description":"","start":"2015-10-12T20:00:00Z","end":"2015-10-12T21:00:00Z","deleted":false,"created":"2015-10-11T20:17:24Z","updated":"2015-10-11T20:17:32Z","participation_status":"accepted","attendees":[],"transparency":"opaque","status":"confirmed","categories":[]},{"calendar_id":"cal_VesMAFStrG1xAHiE_IqTwe6Cl0QNWofE0u95TYg","event_uid":"evt_external_55eb0c08e7d68f801b59b2bd","summary":"all team","description":"","start":"2015-10-13T02:30:00Z","end":"2015-10-13T03:30:00Z","deleted":false,"created":"2015-07-29T23:37:16Z","updated":"2015-08-04T20:47:08Z","participation_status":"needs_action","attendees":[{"email":"pierre.swimconnection@gmail.com","display_name":"Pierre Delisle","status":"needs_action"},{"email":"joe@fuelwell.com","display_name":"Joe Tischler","status":"accepted"},{"email":"donny@wellapp.com","display_name":"donny@fuelwell.com","status":"accepted"},{"email":"gui@fuelwell.com","display_name":"Guillaume de Zwirek","status":"accepted"}],"transparency":"opaque","status":"confirmed","categories":[]},{"calendar_id":"cal_VesMAFStrG1xAHiE_IqTwe6Cl0QNWofE0u95TYg","event_uid":"evt_external_561ac3e3e7d68f801b6d9e1c","summary":"test appt busy 2","description":"","start":"2015-10-13T21:00:00Z","end":"2015-10-13T22:00:00Z","deleted":false,"created":"2015-10-11T20:17:34Z","updated":"2015-10-11T20:17:39Z","participation_status":"accepted","attendees":[],"transparency":"opaque","status":"confirmed","categories":[]},{"calendar_id":"cal_VesMAFStrG1xAHiE_IqTwe6Cl0QNWofE0u95TYg","event_uid":"evt_external_561ac3eee7d68f801b6d9e1d","summary":"test appt busy 3","description":"","start":"2015-10-14T22:00:00Z","end":"2015-10-14T23:00:00Z","deleted":false,"created":"2015-10-11T20:17:43Z","updated":"2015-10-11T20:17:50Z","participation_status":"accepted","attendees":[],"transparency":"opaque","status":"confirmed","categories":[]},{"calendar_id":"cal_VesMAFStrG1xAHiE_IqTwe6Cl0QNWofE0u95TYg","event_uid":"evt_external_55eb0c08e7d68f801b59b2be","summary":"Fete de Vincent","description":"","start":"2015-10-15","end":"2015-10-16","deleted":false,"created":"2006-09-28T19:28:21Z","updated":"2015-07-07T01:55:22Z","participation_status":"accepted","attendees":[],"transparency":"opaque","status":"confirmed","categories":[]},{"calendar_id":"cal_VesMAFStrG1xAHiE_IqTwe6Cl0QNWofE0u95TYg","event_uid":"evt_external_55eb0c09e7d68f801b59b2bf","summary":"Fete de Lina","description":"","start":"2015-10-15","end":"2015-10-16","deleted":false,"created":"2006-09-28T19:28:48Z","updated":"2015-07-07T01:55:22Z","participation_status":"accepted","attendees":[],"transparency":"opaque","status":"confirmed","categories":[]}]
+};
 
 var weekAvailableTimePeriods =
     [
@@ -369,3 +413,4 @@ var calendarAppts2 = [
 //console.dir(mergeCalendarAppts(calendarAppts1, calendarAppts2), {depth: null});
 //console.dir(mergeCalendarAppts(calendarAppts1, []), {depth: null});
 
+console.dir(parseCronofyData(cronofyJson), {depth: null});
